@@ -26,6 +26,7 @@
 
 #define HOST_LEN 64
 #define CRED_LEN 128
+#define BEARER_TOKEN_LEN 1024
 
 #define RPC_VERSION "2.0"
 
@@ -63,6 +64,7 @@ typedef struct PeerSignaling {
   char http_path[HOST_LEN];
   char username[CRED_LEN];
   char password[CRED_LEN];
+  char bearer_token[BEARER_TOKEN_LEN];
   char client_id[CRED_LEN];
   PeerConnection* pc;
 
@@ -417,7 +419,7 @@ static void peer_signaling_onicecandidate(char* description, void* userdata) {
       LOGD("Basic Auth: %s", cred_base64);
       peer_signaling_http_post(g_ps.http_host, g_ps.http_path, g_ps.http_port, cred_base64, description);
     } else {
-      peer_signaling_http_post(g_ps.http_host, g_ps.http_path, g_ps.http_port, "", description);
+      peer_signaling_http_post(g_ps.http_host, g_ps.http_path, g_ps.http_port, g_ps.bearer_token, description);
     }
   }
 }
@@ -497,7 +499,11 @@ void peer_signaling_set_config(ServiceConfiguration* service_config) {
     }
 
     g_ps.http_port = service_config->http_port;
-    LOGI("HTTP Host: %s, Port: %d, Path: %s", g_ps.http_host, g_ps.http_port, g_ps.http_path);
+    if (strlen(service_config->bearer_token) > 0) {
+      snprintf(g_ps.bearer_token, BEARER_TOKEN_LEN, "Bearer %s", service_config->bearer_token);
+    }
+
+    printf("HTTP Host: %s, Port: %d, Path: %s", g_ps.http_host, g_ps.http_port, g_ps.http_path);
   } while (0);
 
   do {

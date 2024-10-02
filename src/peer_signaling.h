@@ -17,6 +17,7 @@ typedef struct ServiceConfiguration {
   int http_port;
   const char* username;
   const char* password;
+  const char* bearer_token;
   PeerConnection* pc;
 } ServiceConfiguration;
 
@@ -29,6 +30,7 @@ typedef struct ServiceConfiguration {
     .http_port = 443,             \
     .username = "",               \
     .password = "",               \
+    .bearer_token = "",           \
     .pc = NULL                    \
   }
 
