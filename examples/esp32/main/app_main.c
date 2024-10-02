@@ -81,10 +81,14 @@ void app_main(void) {
   uint8_t mac[8] = {0};
 
   PeerConfiguration config = {
-      .ice_servers = {
-          {.urls = "stun:stun.l.google.com:19302"}},
-      .audio_codec = CODEC_PCMA,
-      .datachannel = DATA_CHANNEL_BINARY,
+    .ice_servers = {
+        {.urls = "stun:stun.l.google.com:19302"}},
+#if defined(CONFIG_WHIP_URL)
+    .video_codec = CODEC_H264,
+#else
+    .audio_codec = CODEC_PCMA,
+    .datachannel = DATA_CHANNEL_BINARY,
+#endif
   };
 
   ESP_LOGI(TAG, "[APP] Startup..");
@@ -124,13 +128,25 @@ void app_main(void) {
   peer_connection_ondatachannel(g_pc, onmessage, onopen, onclose);
 
   ServiceConfiguration service_config = SERVICE_CONFIG_DEFAULT();
-  service_config.client_id = deviceid;
   service_config.pc = g_pc;
-  service_config.mqtt_url = "broker.emqx.io";
-  peer_signaling_set_config(&service_config);
-  peer_signaling_join_channel();
 
-  peer_signaling_join_channel(deviceid, g_pc);
+#if defined(CONFIG_WHIP_URL)
+  service_config.http_url = CONFIG_WHIP_URL;
+  service_config.http_port = CONFIG_WHIP_PORT;
+  service_config.bearer_token = CONFIG_WHIP_BEARER_TOKEN;
+#else
+  service_config.client_id = deviceid;
+  service_config.mqtt_url = "broker.emqx.io";
+#endif
+
+  peer_signaling_set_config(&service_config);
+
+#if defined(CONFIG_WHIP_URL)
+  peer_signaling_whip_connect();
+#else
+  peer_signaling_join_channel();
+  ESP_LOGI(TAG, "open https://sepfy.github.io/webrtc?deviceId=%s", deviceid);
+#endif
 
 #if defined(CONFIG_ESP32S3_XIAO_SENSE)
   StackType_t* stack_memory = (StackType_t*)heap_caps_malloc(8192 * sizeof(StackType_t), MALLOC_CAP_SPIRAM);

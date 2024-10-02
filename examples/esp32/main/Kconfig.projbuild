@@ -16,3 +16,25 @@ menu "ESP32 Hardware Configuration"
     endchoice
 
 endmenu
+
+menu "Signaling Configuration"
+
+    config WHIP_URL
+        string "WHIP URL"
+        default ""
+        help
+            URL for WHIP Endpoint.
+
+    config WHIP_PORT
+        int "WHIP PORT"
+        default 443
+        help
+            Port for WHIP Endpoint.
+
+    config WHIP_BEARER_TOKEN
+        string "WHIP Bearer Token"
+        default ""
+        help
+            Bearer token used in HTTP Authorization header.
+
+endmenu
