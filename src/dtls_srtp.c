@@ -304,10 +304,12 @@ static int dtls_srtp_do_handshake(DtlsSrtp* dtls_srtp) {
 
   mbedtls_ssl_set_bio(&dtls_srtp->ssl, dtls_srtp, dtls_srtp->udp_send, dtls_srtp->udp_recv, NULL);
 
+  LOGI("Starting DTLS handshake");
   do {
     ret = mbedtls_ssl_handshake(&dtls_srtp->ssl);
 
   } while (ret == MBEDTLS_ERR_SSL_WANT_READ || ret == MBEDTLS_ERR_SSL_WANT_WRITE);
+  LOGI("DTLS handshake done");
 
   return ret;
 }

@@ -15,7 +15,7 @@
 #include "stun.h"
 #include "utils.h"
 
-#define AGENT_POLL_TIMEOUT 1
+#define AGENT_POLL_TIMEOUT 0
 #define AGENT_CONNCHECK_MAX 300
 #define AGENT_CONNCHECK_PERIOD 100
 #define AGENT_STUN_RECV_MAXTIMES 1000
@@ -58,14 +58,14 @@ void agent_destroy(Agent* agent) {
 #endif
 }
 
-static int agent_socket_recv(Agent* agent, Address* addr, uint8_t* buf, int len) {
+static int agent_socket_recv(Agent* agent, Address* addr, uint8_t* buf, int len, int timeout) {
   int ret = -1;
   int i = 0;
   int maxfd = 0;
   fd_set rfds;
   struct timeval tv;
   tv.tv_sec = 0;
-  tv.tv_usec = AGENT_POLL_TIMEOUT * 1000;
+  tv.tv_usec = timeout * 1000;
   FD_ZERO(&rfds);
 
   for (i = 0; i < 2; i++) {
@@ -95,11 +95,11 @@ static int agent_socket_recv(Agent* agent, Address* addr, uint8_t* buf, int len)
   return ret;
 }
 
-static int agent_socket_recv_attempts(Agent* agent, Address* addr, uint8_t* buf, int len, int maxtimes) {
+static int agent_socket_recv_attempts(Agent* agent, Address* addr, uint8_t* buf, int len, int timeout, int maxtimes) {
   int ret = -1;
   int i = 0;
   for (i = 0; i < maxtimes; i++) {
-    if ((ret = agent_socket_recv(agent, addr, buf, len)) != 0) {
+    if ((ret = agent_socket_recv(agent, addr, buf, len, timeout)) != 0) {
       break;
     }
   }
@@ -121,9 +121,10 @@ static int agent_create_host_addr(Agent* agent) {
   int i, j;
   const char* iface_prefx[] = {CONFIG_IFACE_PREFIX};
   IceCandidate* ice_candidate;
-  int addr_type[] = { AF_INET,
+  int addr_type[] = {
+      AF_INET,
 #if CONFIG_IPV6
-                      AF_INET6,
+      AF_INET6,
 #endif
   };
 
@@ -160,7 +161,7 @@ static int agent_create_stun_addr(Agent* agent, Address* serv_addr) {
     return ret;
   }
 
-  ret = agent_socket_recv_attempts(agent, NULL, recv_msg.buf, sizeof(recv_msg.buf), AGENT_STUN_RECV_MAXTIMES);
+  ret = agent_socket_recv_attempts(agent, NULL, recv_msg.buf, sizeof(recv_msg.buf), 1, AGENT_STUN_RECV_MAXTIMES);
   if (ret <= 0) {
     LOGD("Failed to receive STUN Binding Response.");
     return ret;
@@ -191,7 +192,7 @@ static int agent_create_turn_addr(Agent* agent, Address* serv_addr, const char* 
     return -1;
   }
 
-  ret = agent_socket_recv_attempts(agent, NULL, recv_msg.buf, sizeof(recv_msg.buf), AGENT_STUN_RECV_MAXTIMES);
+  ret = agent_socket_recv_attempts(agent, NULL, recv_msg.buf, sizeof(recv_msg.buf), 1, AGENT_STUN_RECV_MAXTIMES);
   if (ret <= 0) {
     LOGD("Failed to receive STUN Binding Response.");
     return ret;
@@ -218,7 +219,7 @@ static int agent_create_turn_addr(Agent* agent, Address* serv_addr, const char* 
     return -1;
   }
 
-  agent_socket_recv_attempts(agent, NULL, recv_msg.buf, sizeof(recv_msg.buf), AGENT_STUN_RECV_MAXTIMES);
+  agent_socket_recv_attempts(agent, NULL, recv_msg.buf, sizeof(recv_msg.buf), 1, AGENT_STUN_RECV_MAXTIMES);
   if (ret <= 0) {
     LOGD("Failed to receive TURN Binding Response.");
     return ret;
@@ -365,11 +366,11 @@ void agent_process_stun_response(Agent* agent, StunMessage* stun_msg) {
   }
 }
 
-int agent_recv(Agent* agent, uint8_t* buf, int len) {
+int agent_recv(Agent* agent, uint8_t* buf, int len, int timeout) {
   int ret = -1;
   StunMessage stun_msg;
   Address addr;
-  if ((ret = agent_socket_recv(agent, &addr, buf, len)) > 0 && stun_probe(buf, len) == 0) {
+  if ((ret = agent_socket_recv(agent, &addr, buf, len, timeout)) > 0 && stun_probe(buf, len) == 0) {
     memcpy(stun_msg.buf, buf, ret);
     stun_msg.size = ret;
     stun_parse_msg_buf(&stun_msg);
@@ -442,7 +443,7 @@ int agent_connectivity_check(Agent* agent) {
   uint8_t buf[1400];
   StunMessage msg;
 
-  if (agent->nominated_pair->state != ICE_CANDIDATE_STATE_INPROGRESS) {
+  if (!agent->nominated_pair || agent->nominated_pair->state != ICE_CANDIDATE_STATE_INPROGRESS) {
     LOGI("nominated pair is not in progress");
     return -1;
   }
@@ -456,7 +457,7 @@ int agent_connectivity_check(Agent* agent) {
     agent_socket_send(agent, &agent->nominated_pair->remote->addr, msg.buf, msg.size);
   }
 
-  agent_recv(agent, buf, sizeof(buf));
+  agent_recv(agent, buf, sizeof(buf), 1);
 
   if (agent->nominated_pair->state == ICE_CANDIDATE_STATE_SUCCEEDED) {
     agent->selected_pair = agent->nominated_pair;
@@ -488,5 +489,5 @@ int agent_select_candidate_pair(Agent* agent) {
     }
   }
   // all candidate pairs are failed
-  return -1;
+  return agent->candidate_pairs_num > 0 ? -1 : 0;
 }
